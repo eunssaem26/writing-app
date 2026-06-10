@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "글쓰기 커리큘럼",
-  description: "질문연구소 글쓰기 커리큘럼",
+  description: "생각하는 글밭 글쓰기 커리큘럼",
 };
 
 export default function RootLayout({
