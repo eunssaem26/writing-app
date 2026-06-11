@@ -46,14 +46,22 @@ export default function WritePage({
         body: JSON.stringify({ stage, lesson_num: lessonNum, student_text: text }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "알 수 없는 오류");
+        const data = await res.json().catch(() => null);
+        throw new Error(
+          data?.error ?? "문제가 생겼어요. 잠시 후 다시 시도해 주세요."
+        );
       }
       const data: FeedbackResult = await res.json();
       setFeedback(data);
       setAttempt((n) => n + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      // fetch 실패(네트워크 끊김 등)는 영어 메시지가 나오므로 한국어로 바꿔준다
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(
+        /fetch|network|load failed/i.test(msg)
+          ? "인터넷 연결이 불안정해요. 연결을 확인하고 다시 시도해 주세요."
+          : msg
+      );
     } finally {
       setLoading(false);
     }

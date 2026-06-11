@@ -90,7 +90,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     console.error("[/api/feedback]", err);
-    const message = err instanceof Error ? err.message : String(err);
+    // 학생에게는 원인별 한국어 안내만 보여주고, 원문 에러는 서버 로그에만 남긴다
+    const raw = err instanceof Error ? err.message : String(err);
+    let message = "피드백을 만드는 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.";
+    if (/apiKey|authToken|authentication|invalid x-api-key|401/i.test(raw)) {
+      message =
+        "글쌤(AI) 연결 설정에 문제가 있어요. 선생님께 알려 주세요!";
+    } else if (/rate.?limit|overloaded|429|529/i.test(raw)) {
+      message = "지금 글쌤이 너무 바빠요. 1분 뒤에 다시 시도해 주세요.";
+    } else if (/JSON|Unexpected token/i.test(raw)) {
+      message =
+        "피드백을 읽어 오는 중 문제가 생겼어요. 한 번만 다시 시도해 주세요.";
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
