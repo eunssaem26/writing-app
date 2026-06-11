@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseConfig } from "@/lib/supabase/config";
+import AddStudentForm from "@/components/AddStudentForm";
 import type {
   DiagnosisResult,
   LessonRecord,
@@ -156,6 +157,8 @@ export default async function DashboardPage() {
           </form>
         </div>
       </div>
+
+      {role === "teacher" && <AddStudentForm />}
 
       {students.length === 0 && (
         <p className="rounded-xl bg-amber-100 p-4 text-amber-800">

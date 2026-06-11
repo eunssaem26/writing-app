@@ -36,12 +36,22 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
+        // 사전 등록제: 등록된 학생 이메일만 로그인 링크 발송 (자동 가입 차단)
+        shouldCreateUser: false,
         emailRedirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
     setLoading(false);
     if (error) {
-      setError(error.message);
+      const notRegistered =
+        /signups? not allowed/i.test(error.message) ||
+        error.code === "otp_disabled" ||
+        error.code === "signup_disabled";
+      setError(
+        notRegistered
+          ? "This email isn't registered yet — please contact your teacher.\n아직 등록되지 않은 이메일이에요. 선생님께 문의해 주세요."
+          : error.message
+      );
     } else {
       setSent(true);
     }
@@ -137,7 +147,7 @@ function LoginForm() {
         )}
 
         {error && (
-          <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+          <p className="mt-4 whitespace-pre-line rounded-lg bg-red-50 p-3 text-sm text-red-600">
             {error}
           </p>
         )}

@@ -12,6 +12,22 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
+    // 허가된(로그인한) 학생만 AI 피드백 사용 가능 — API 직접 호출로 인한 비용 누수 차단
+    let studentId: string | null = null;
+    if (supabaseConfig().configured) {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        return NextResponse.json(
+          { error: "로그인이 필요합니다. Please log in first." },
+          { status: 401 }
+        );
+      }
+      studentId = user.id;
+    }
+
     const body = await req.json();
     const { stage, lesson_num, student_text } = body as {
       stage: number;
@@ -55,22 +71,17 @@ export async function POST(req: NextRequest) {
     const jsonText = stripJson(rawText);
     const result: FeedbackResult = JSON.parse(jsonText);
 
-    // 로그인한 학생이면 수업 기록을 저장 (실패해도 피드백 응답은 그대로 반환)
-    if (supabaseConfig().configured) {
+    // 수업 기록 저장 (실패해도 피드백 응답은 그대로 반환)
+    if (studentId) {
       try {
         const supabase = await createClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from("lesson_records").insert({
-            student_id: user.id,
-            stage,
-            lesson: lesson_num,
-            student_text,
-            feedback: result,
-          });
-        }
+        await supabase.from("lesson_records").insert({
+          student_id: studentId,
+          stage,
+          lesson: lesson_num,
+          student_text,
+          feedback: result,
+        });
       } catch (saveErr) {
         console.error("[/api/feedback] 기록 저장 실패", saveErr);
       }

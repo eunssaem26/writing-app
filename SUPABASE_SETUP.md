@@ -39,6 +39,30 @@ Supabase 대시보드 → **Authentication → URL Configuration**:
 
 이메일 로그인(매직 링크)은 이걸로 끝 — 바로 작동해요.
 
+## 학생 사전 등록제 (2026-06-11 추가)
+
+허가받은 학생만 로그인할 수 있게 하는 기능. 두 가지 설정이 필요:
+
+### ① Supabase에서 신규 가입 차단 (1분)
+
+Authentication → **Sign In / Providers** → **"Allow new users to sign up"** 스위치 **끄기**.
+→ 이걸 꺼야 외부인이 Supabase API를 직접 호출해 가입하는 것까지 막힌다.
+
+### ② 서버에 Secret key 등록 (3분)
+
+교사 대시보드의 "학생 추가" 기능이 관리자 권한으로 계정을 만들기 때문에 비밀 키가 필요:
+
+1. https://supabase.com/dashboard/project/bbmrnjkqjxmlvzjsvzfp/settings/api-keys 에서 **Secret key** (`sb_secret_...`) Reveal → 복사
+2. `writing-app/.env.local`에 한 줄 추가: `SUPABASE_SECRET_KEY=sb_secret_...`
+3. Vercel → writing-app-1q5b → Settings → Environment Variables 에도 같은 키 추가 → Redeploy
+
+⚠️ 이 키는 `NEXT_PUBLIC_` 접두사를 절대 붙이지 말 것 (브라우저에 노출되면 안 됨).
+
+### 학생 등록하는 법
+
+교사 계정으로 `/dashboard` 접속 → **학생 추가** 폼에 이메일(+이름) 입력 → 등록.
+그 즉시 해당 이메일로 로그인 가능. 등록 안 된 이메일은 로그인 시 "선생님께 문의해 주세요" 안내가 뜬다.
+
 ## 5. (선택) Google 로그인 켜기 (5분)
 
 Authentication → Providers → Google → Enable.
