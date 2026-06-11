@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
+/* 시스템 다크 모드와 무관하게 항상 밝은 크림색 테마 고정
+   (다크 모드에서 글자가 묻히는 문제 방지) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fffbeb; /* amber-50 */
+  --foreground: #27272a; /* zinc-800 */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -10,13 +13,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
