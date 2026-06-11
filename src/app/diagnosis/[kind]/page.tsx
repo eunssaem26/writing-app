@@ -22,6 +22,20 @@ import {
 
 type Step = "loading" | "intro" | "quiz" | "saving" | "result";
 
+/** 문항 텍스트의 _밑줄_ 마커(_, __, ___)를 실제 밑줄로 렌더링 */
+function renderMarked(text: string) {
+  return text.split(/(_{1,3}[^_\n]+_{1,3})/g).map((part, i) => {
+    const m = part.match(/^_{1,3}([^_\n]+)_{1,3}$/);
+    return m ? (
+      <u key={i} className="underline decoration-emerald-600 decoration-2 underline-offset-4">
+        {m[1]}
+      </u>
+    ) : (
+      <span key={i}>{part}</span>
+    );
+  });
+}
+
 interface ResultData {
   domainLevels: Record<string, number>;
   avg: number;
@@ -353,12 +367,12 @@ export default function DiagnosisSession({
 
       {passage && (
         <div className="mb-5 max-h-72 overflow-y-auto whitespace-pre-line rounded-xl border border-zinc-200 bg-white p-5 text-[15px] leading-relaxed text-zinc-700">
-          {passage}
+          {renderMarked(passage)}
         </div>
       )}
 
       <p className="mb-5 whitespace-pre-line text-lg font-semibold leading-relaxed text-zinc-800">
-        {current.question_text}
+        {renderMarked(current.question_text)}
       </p>
 
       {isOrdering && (
@@ -398,7 +412,7 @@ export default function DiagnosisSession({
               >
                 {isOrdering ? (selected ? orderNum : "·") : ["①", "②", "③", "④"][i] ?? i + 1}
               </span>
-              {c}
+              <span>{renderMarked(c)}</span>
             </button>
           );
         })}
