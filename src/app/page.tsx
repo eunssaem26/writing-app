@@ -1,6 +1,10 @@
+import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseConfig } from "@/lib/supabase/config";
+
+const YOUTUBE_URL =
+  "https://www.youtube.com/@%EC%83%9D%EA%B0%81%ED%95%98%EB%8A%94%EA%B8%80%EB%B0%AD";
 
 const STAGES = [
   { stage: 1, title: "1단계 — 문장 쓰기", lessons: 12, color: "bg-sky-100 border-sky-300" },
@@ -41,10 +45,23 @@ export default async function HomePage() {
         )}
       </nav>
 
-      <h1 className="mb-2 text-3xl font-bold text-zinc-800">글쓰기 커리큘럼</h1>
-      <p className="mb-10 text-zinc-500">
-        단계를 골라 시작해보세요. <span className="text-zinc-400">Pick a stage to begin.</span>
-      </p>
+      <div className="mb-10 flex items-center gap-4">
+        <Image
+          src="/characters/geulsaem.png"
+          alt="글쌤 — 글쓰기 코치"
+          width={72}
+          height={72}
+          className="rounded-full shadow-md"
+          priority
+        />
+        <div>
+          <h1 className="text-3xl font-bold text-zinc-800">글쓰기 커리큘럼</h1>
+          <p className="text-zinc-500">
+            글쌤과 함께 단계를 골라 시작해보세요.{" "}
+            <span className="text-zinc-400">Pick a stage to begin.</span>
+          </p>
+        </div>
+      </div>
       <div className="flex flex-col gap-4">
         {STAGES.map(({ stage, title, lessons, color }) => (
           <Link
@@ -60,6 +77,31 @@ export default async function HomePage() {
           </Link>
         ))}
       </div>
+
+      <footer className="mt-16 flex flex-col items-center gap-2 text-sm text-zinc-400">
+        <div className="flex gap-2">
+          {["byeolsaem", "chaeksaem", "geulsaem", "hogi", "kkansaem", "philo"].map(
+            (c) => (
+              <Image
+                key={c}
+                src={`/characters/${c}.png`}
+                alt={c}
+                width={32}
+                height={32}
+                className="rounded-full"
+              />
+            )
+          )}
+        </div>
+        <a
+          href={YOUTUBE_URL}
+          target="_blank"
+          rel="noopener"
+          className="font-semibold text-red-600 hover:underline"
+        >
+          ▶ YouTube 생각하는 글밭 — 글밭 식구들 만나러 가기
+        </a>
+      </footer>
     </main>
   );
 }

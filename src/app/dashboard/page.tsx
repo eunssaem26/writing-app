@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -181,7 +182,14 @@ export default async function DashboardPage() {
                 </h2>
               )}
 
-              <h3 className="mb-2 font-semibold text-zinc-700">
+              <h3 className="mb-2 flex items-center gap-2 font-semibold text-zinc-700">
+                <Image
+                  src="/characters/byeolsaem.png"
+                  alt="별쌤"
+                  width={28}
+                  height={28}
+                  className="rounded-full"
+                />
                 {t.diagnosis}
               </h3>
               {myDiagnoses.length === 0 ? (
@@ -206,7 +214,16 @@ export default async function DashboardPage() {
                 </ul>
               )}
 
-              <h3 className="mb-2 font-semibold text-zinc-700">{t.lessons}</h3>
+              <h3 className="mb-2 flex items-center gap-2 font-semibold text-zinc-700">
+                <Image
+                  src="/characters/geulsaem.png"
+                  alt="글쌤"
+                  width={28}
+                  height={28}
+                  className="rounded-full"
+                />
+                {t.lessons}
+              </h3>
               {myLessons.length === 0 ? (
                 <p className="text-sm text-zinc-400">{t.noLessons}</p>
               ) : (

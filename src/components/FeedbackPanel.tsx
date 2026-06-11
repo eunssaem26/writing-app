@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { FeedbackResult } from "@/lib/claude/types";
 
 interface Props {
@@ -20,8 +21,16 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
             : "bg-red-50 border border-red-200"
         }`}
       >
+        <Image
+          src="/characters/geulsaem.png"
+          alt="글쌤"
+          width={48}
+          height={48}
+          className="rounded-full shadow-sm"
+        />
         <span className="text-3xl">{feedback.pass ? "🎉" : "💪"}</span>
         <div>
+          <p className="text-xs font-medium text-zinc-400">글쌤의 피드백</p>
           <p
             className={`text-lg font-bold ${
               feedback.pass ? "text-emerald-700" : "text-red-700"

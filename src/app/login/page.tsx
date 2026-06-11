@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { supabaseConfig } from "@/lib/supabase/config";
@@ -49,12 +50,23 @@ function LoginForm() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
       <div className="mb-10 text-center">
+        <Image
+          src="/characters/hogi.png"
+          alt="호기 — your study buddy"
+          width={96}
+          height={96}
+          className="mx-auto mb-3 rounded-full shadow-md"
+          priority
+        />
         <h1 className="text-3xl font-bold text-zinc-800">생각하는 글밭</h1>
         <p className="mt-1 text-lg font-medium text-emerald-700">
           Thinking Field
         </p>
         <p className="mt-2 text-sm text-zinc-500">
           Where Thoughts Grow — Korean reading &amp; writing classes
+        </p>
+        <p className="mt-1 text-xs text-zinc-400">
+          Hi! I&apos;m Hogi, your study buddy 🐾 안녕, 나는 호기야!
         </p>
       </div>
 
