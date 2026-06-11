@@ -2,17 +2,18 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import {
   Answered,
   Band,
   Bank,
-  buildPhase1,
+  buildAnchorSet,
   buildPhase2,
   buildWarmup,
   decideBand,
   deviationNotice,
   DOMAINS,
+  groupByPassage,
   isCorrect,
   Item,
   judgeDomainLevel,
@@ -21,6 +22,23 @@ import {
 } from "@/lib/diagnosis/engine";
 
 type Step = "loading" | "intro" | "quiz" | "saving" | "result";
+type Phase = "warmup" | "p1" | "p2";
+type Stage = "base" | "a6" | "p2"; // base = 워밍업+2단계+4단계 앵커
+
+interface QueueEntry {
+  item: Item;
+  phase: Phase;
+}
+
+interface ResultData {
+  domainLevels: Record<string, number>;
+  avg: number;
+  level: number;
+  borderline: boolean;
+  deviation: ReturnType<typeof deviationNotice>;
+  correct: number;
+  wrong: number;
+}
 
 /** 문항 텍스트의 _밑줄_ 마커(_, __, ___)를 실제 밑줄로 렌더링 */
 function renderMarked(text: string) {
@@ -36,16 +54,6 @@ function renderMarked(text: string) {
   });
 }
 
-interface ResultData {
-  domainLevels: Record<string, number>;
-  avg: number;
-  level: number;
-  borderline: boolean;
-  deviation: ReturnType<typeof deviationNotice>;
-  correct: number;
-  wrong: number;
-}
-
 export default function DiagnosisSession({
   params,
 }: {
@@ -57,16 +65,18 @@ export default function DiagnosisSession({
 
   const [bank, setBank] = useState<Bank | null>(null);
   const [step, setStep] = useState<Step>("loading");
-  const [queue, setQueue] = useState<Item[]>([]);
-  const [phase, setPhase] = useState<"warmup" | "p1" | "p2">("warmup");
+  const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [index, setIndex] = useState(0);
   const [answered, setAnswered] = useState<Answered[]>([]);
   const [choice, setChoice] = useState<number | null>(null);
-  const [order, setOrder] = useState<number[]>([]); // 순서 배열형 응답
+  const [order, setOrder] = useState<number[]>([]);
   const [result, setResult] = useState<ResultData | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "ok" | "fail">("idle");
-  const [used] = useState(() => new Set<string>());
-  const [usedPassages] = useState(() => new Set<string>());
+
+  const stage = useRef<Stage>("base");
+  const a6ByDomain = useRef<Record<string, Item>>({});
+  const used = useRef(new Set<string>());
+  const usedPassages = useRef(new Set<string>());
 
   useEffect(() => {
     (kind === "reading"
@@ -86,69 +96,95 @@ export default function DiagnosisSession({
 
   function start() {
     if (!bank) return;
-    const warmup = buildWarmup(bank, used);
-    const p1 = buildPhase1(bank, kind, used);
-    p1.forEach((i) => i.passage_id && usedPassages.add(i.passage_id));
-    setQueue([...warmup, ...p1]);
-    setPhase(warmup.length > 0 ? "warmup" : "p1");
+    const warmup = buildWarmup(bank, used.current);
+    const anchors = buildAnchorSet(bank, kind, used.current);
+    a6ByDomain.current = anchors.a6ByDomain;
+    const p1Base = [...groupByPassage(anchors.a2), ...groupByPassage(anchors.a4)];
+    p1Base.forEach((i) => i.passage_id && usedPassages.current.add(i.passage_id));
+    setQueue([
+      ...warmup.map((item) => ({ item, phase: "warmup" as Phase })),
+      ...p1Base.map((item) => ({ item, phase: "p1" as Phase })),
+    ]);
+    stage.current = "base";
     setIndex(0);
     setStep("quiz");
   }
 
   const current = queue[index];
-  const warmupCount = queue.filter((q, i) => i < index && phaseOf(i) === "warmup").length;
 
-  function phaseOf(i: number): "warmup" | "p1" | "p2" {
-    // 큐 구성: 워밍업 2 → 1차 15 → 2차 15
-    if (i < 2) return "warmup";
-    if (i < 17) return "p1";
-    return "p2";
+  /** 현재 큐 끝에 도달했을 때 다음 구간을 조립한다 */
+  function extendOrFinish(all: Answered[]) {
+    if (!bank) return;
+
+    if (stage.current === "base") {
+      // 사다리식: 4단계 앵커를 맞힌 영역에만 6단계 앵커 제시
+      const qualified = DOMAINS[kind]
+        .filter((d) =>
+          all.some(
+            (a) =>
+              a.phase === "p1" &&
+              a.item.domain_code === d.code &&
+              a.item.level === 4 &&
+              a.correct
+          )
+        )
+        .map((d) => a6ByDomain.current[d.code])
+        .filter(Boolean);
+
+      if (qualified.length > 0) {
+        const grouped = groupByPassage(qualified);
+        grouped.forEach((i) => i.passage_id && usedPassages.current.add(i.passage_id));
+        stage.current = "a6";
+        setQueue((q) => [...q, ...grouped.map((item) => ({ item, phase: "p1" as Phase }))]);
+        setIndex((i) => i + 1);
+        return;
+      }
+      // 6단계 진출 영역이 없으면 곧장 2차로
+    }
+
+    if (stage.current === "base" || stage.current === "a6") {
+      const bands: Record<string, Band> = {};
+      for (const d of DOMAINS[kind]) {
+        const anchors = all.filter(
+          (a) => a.phase === "p1" && a.item.domain_code === d.code
+        );
+        const at = (lv: number) =>
+          anchors.find((a) => a.item.level === lv)?.correct ?? false; // 미제시 6단계 = 오답 처리
+        bands[d.code] = decideBand(at(2), at(4), at(6));
+      }
+      const p2 = groupByPassage(
+        buildPhase2(bank, kind, bands, used.current, usedPassages.current)
+      );
+      stage.current = "p2";
+      setQueue((q) => [...q, ...p2.map((item) => ({ item, phase: "p2" as Phase }))]);
+      setIndex((i) => i + 1);
+      return;
+    }
+
+    finish(all);
   }
 
-  function submitAnswer() {
+  function submitAnswer(idk = false) {
     if (!bank || !current) return;
-    const response = Array.isArray(current.answer) ? order : choice;
-    if (response === null || (Array.isArray(response) && response.length !== current.choices.length)) return;
+    const response = Array.isArray(current.item.answer) ? order : choice;
+    if (!idk && (response === null || (Array.isArray(response) && response.length !== current.item.choices.length))) return;
 
-    const currentPhase = phaseOf(index);
     const record: Answered = {
-      item: current,
-      correct: isCorrect(current, response as number | number[]),
-      phase: currentPhase,
+      item: current.item,
+      correct: idk ? false : isCorrect(current.item, response as number | number[]),
+      phase: current.phase,
+      ...(idk ? { idk: true } : {}),
     };
     const nextAnswered = [...answered, record];
     setAnswered(nextAnswered);
     setChoice(null);
     setOrder([]);
 
-    const isLastOfP1 = index === 16; // 워밍업 2 + 1차 15
-    const isLast = index === queue.length - 1;
-
-    if (isLastOfP1 && phaseOf(index) === "p1") {
-      // 영역별 후보 대역 결정 → 2차 문항 조립
-      const bands: Record<string, Band> = {};
-      for (const d of DOMAINS[kind]) {
-        const anchors = nextAnswered.filter(
-          (a) => a.phase === "p1" && a.item.domain_code === d.code
-        );
-        const at = (lv: number) =>
-          anchors.find((a) => a.item.level === lv)?.correct ?? false;
-        bands[d.code] = decideBand(at(2), at(4), at(6));
-      }
-      const p2 = buildPhase2(bank, kind, bands, used, usedPassages);
-      setQueue((q) => [...q, ...p2]);
+    if (index === queue.length - 1) {
+      extendOrFinish(nextAnswered);
+    } else {
       setIndex(index + 1);
-      setPhase("p2");
-      return;
     }
-
-    if (isLast && phaseOf(index) === "p2") {
-      finish(nextAnswered);
-      return;
-    }
-
-    setIndex(index + 1);
-    if (phaseOf(index + 1) !== currentPhase) setPhase(phaseOf(index + 1));
   }
 
   async function finish(all: Answered[]) {
@@ -189,6 +225,7 @@ export default function DiagnosisSession({
               domain: a.item.domain_code,
               correct: a.correct,
               phase: a.phase,
+              ...(a.idk ? { idk: true } : {}),
             })),
           },
         }),
@@ -227,9 +264,14 @@ export default function DiagnosisSession({
           <p className="mb-6 leading-relaxed text-zinc-500">
             안녕! 나는 진단을 설계한 별쌤이야. 🦊
             <br />
-            연습 2문항 + 진단 30문항이 나오고, 약 25분 정도 걸려.
+            연습 2문항을 풀고 나면 진단이 시작돼. (약 20~30문항, 20분 안팎)
             <br />
-            모르는 문제는 골똘히 고민하지 말고 가장 가깝다고 생각하는 답을 골라줘.
+            <strong className="text-zinc-600">
+              일부러 위 학년 문제도 섞여 나와.
+            </strong>{" "}
+            어려운 게 나오는 건 네가 못해서가 아니라 원래 그런 거니까,
+            <br />
+            모르는 문제는 <strong className="text-emerald-700">&lsquo;잘 모르겠어요&rsquo;</strong> 버튼을 눌러도 괜찮아.
             <br />
             <span className="text-zinc-400">
               점수를 매기는 시험이 아니라, 너에게 딱 맞는 시작점을 찾는 거야.
@@ -274,8 +316,7 @@ export default function DiagnosisSession({
               종합 {result.level}단계
               {result.borderline && (
                 <span className="ml-1 text-base font-medium text-amber-600">
-                  (경계선 — {Math.max(1, result.level - (result.avg < result.level ? 1 : 0))}~
-                  {Math.min(7, result.level + (result.avg >= result.level ? 1 : 0))}단계 사이)
+                  (경계선)
                 </span>
               )}
             </p>
@@ -343,27 +384,37 @@ export default function DiagnosisSession({
 
   // ─────────────── 문항 풀이 화면 ───────────────
   if (!current) return null;
-  const passage = current.passage_id ? passageMap.get(current.passage_id) : null;
-  const isOrdering = Array.isArray(current.answer);
-  const total = phase === "p2" || queue.length > 17 ? 32 : 17;
-  const isWarm = phaseOf(index) === "warmup";
+  const item = current.item;
+  const passage = item.passage_id ? passageMap.get(item.passage_id) : null;
+  const samePassageAsPrev =
+    !!item.passage_id && queue[index - 1]?.item.passage_id === item.passage_id;
+  const isOrdering = Array.isArray(item.answer);
+  const isWarm = current.phase === "warmup";
+  const scoredIndex = index - queue.filter((q, i) => i < index && q.phase === "warmup").length;
+  const progress = (index + 1) / Math.max(queue.length, 27);
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <div className="mb-4 flex items-center justify-between text-sm text-zinc-400">
         <span>
           {isWarm
-            ? `연습 ${index + 1}/2 (점수 미반영)`
-            : `${kindLabel} 진단 ${index - 1}/${total - 2}`}
+            ? `연습 ${index + 1} (점수 미반영)`
+            : `${kindLabel} 진단 ${scoredIndex + 1}번째`}
         </span>
-        <span>{current.domain}</span>
+        <span>{item.domain}</span>
       </div>
       <div className="mb-6 h-2 overflow-hidden rounded-full bg-zinc-100">
         <div
           className="h-2 rounded-full bg-emerald-500 transition-all"
-          style={{ width: `${((index + 1) / total) * 100}%` }}
+          style={{ width: `${Math.min(progress * 100, 100)}%` }}
         />
       </div>
+
+      {samePassageAsPrev && (
+        <p className="mb-2 inline-block rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700">
+          📖 방금 읽은 글에서 이어지는 문제예요
+        </p>
+      )}
 
       {passage && (
         <div className="mb-5 max-h-72 overflow-y-auto whitespace-pre-line rounded-xl border border-zinc-200 bg-white p-5 text-[15px] leading-relaxed text-zinc-700">
@@ -372,7 +423,7 @@ export default function DiagnosisSession({
       )}
 
       <p className="mb-5 whitespace-pre-line text-lg font-semibold leading-relaxed text-zinc-800">
-        {renderMarked(current.question_text)}
+        {renderMarked(item.question_text)}
       </p>
 
       {isOrdering && (
@@ -381,8 +432,8 @@ export default function DiagnosisSession({
         </p>
       )}
 
-      <div className="mb-8 flex flex-col gap-3">
-        {current.choices.map((c, i) => {
+      <div className="mb-6 flex flex-col gap-3">
+        {item.choices.map((c, i) => {
           const selected = isOrdering ? order.includes(i) : choice === i;
           const orderNum = isOrdering ? order.indexOf(i) + 1 : 0;
           return (
@@ -418,13 +469,21 @@ export default function DiagnosisSession({
         })}
       </div>
 
-      <button
-        onClick={submitAnswer}
-        disabled={isOrdering ? order.length !== current.choices.length : choice === null}
-        className="w-full rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {index === queue.length - 1 && phaseOf(index) === "p2" ? "제출하고 결과 보기" : "다음 →"}
-      </button>
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={() => submitAnswer(false)}
+          disabled={isOrdering ? order.length !== item.choices.length : choice === null}
+          className="w-full rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          다음 →
+        </button>
+        <button
+          onClick={() => submitAnswer(true)}
+          className="w-full rounded-xl border-2 border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-500 hover:border-zinc-300 hover:text-zinc-600"
+        >
+          잘 모르겠어요, 다음 문제 주세요
+        </button>
+      </div>
     </main>
   );
 }

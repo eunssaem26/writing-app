@@ -92,19 +92,54 @@ export function buildWarmup(bank: Bank, used: Set<string>): Item[] {
   return picked;
 }
 
-/** 1차 라우팅 15문항 — 영역별 2·4·6단계 앵커 (medium 우선) */
-export function buildPhase1(bank: Bank, kind: Kind, used: Set<string>): Item[] {
-  const out: Item[] = [];
+export interface AnchorSet {
+  a2: Item[]; // 영역별 2단계 앵커 (항상 출제)
+  a4: Item[]; // 영역별 4단계 앵커 (항상 출제)
+  a6ByDomain: Record<string, Item>; // 6단계 앵커 — 해당 영역 4단계 정답 시에만 출제 (사다리식)
+}
+
+/** 1차 라우팅 앵커 선발 — 영역별 2·4·6단계 (medium 우선).
+ *  6단계는 사다리식: 4단계를 통과한 영역에만 제시해 어린 학생의 체감 난도를 낮춘다.
+ *  6단계 미제시 = 오답 처리 — 별쌤 8케이스 표에서 해당 행은 보수 배정과 동일/유사. */
+export function buildAnchorSet(bank: Bank, kind: Kind, used: Set<string>): AnchorSet {
+  const pickAnchor = (domain: string, lv: number): Item | null => {
+    const pool = bank.items.filter(
+      (i) => i.domain_code === domain && i.level === lv
+    );
+    const medium = pool.filter((i) => i.difficulty_tier === "medium");
+    return pick(medium.length ? medium : pool, 1, used)[0] ?? null;
+  };
+  const a2: Item[] = [];
+  const a4: Item[] = [];
+  const a6ByDomain: Record<string, Item> = {};
   for (const d of DOMAINS[kind]) {
-    for (const lv of ANCHOR_LEVELS) {
-      const pool = bank.items.filter(
-        (i) => i.domain_code === d.code && i.level === lv
-      );
-      const medium = pool.filter((i) => i.difficulty_tier === "medium");
-      const picked = pick(medium.length ? medium : pool, 1, used);
-      out.push(...picked);
-    }
+    const i2 = pickAnchor(d.code, ANCHOR_LEVELS[0]);
+    const i4 = pickAnchor(d.code, ANCHOR_LEVELS[1]);
+    const i6 = pickAnchor(d.code, ANCHOR_LEVELS[2]);
+    if (i2) a2.push(i2);
+    if (i4) a4.push(i4);
+    if (i6) a6ByDomain[d.code] = i6;
   }
+  return { a2, a4, a6ByDomain };
+}
+
+/** 같은 지문을 공유하는 문항을 연속 배치 (조립 규칙 3.4 — 지문을 두 번 읽지 않게) */
+export function groupByPassage(items: Item[]): Item[] {
+  const out: Item[] = [];
+  const taken = new Set<number>();
+  items.forEach((it, i) => {
+    if (taken.has(i)) return;
+    out.push(it);
+    taken.add(i);
+    if (it.passage_id) {
+      items.forEach((other, j) => {
+        if (!taken.has(j) && other.passage_id === it.passage_id) {
+          out.push(other);
+          taken.add(j);
+        }
+      });
+    }
+  });
   return out;
 }
 
@@ -147,6 +182,7 @@ export interface Answered {
   item: Item;
   correct: boolean;
   phase: "warmup" | "p1" | "p2";
+  idk?: boolean; // "잘 모르겠어요" 응답 (오답 처리, 분석용 기록)
 }
 
 /**
