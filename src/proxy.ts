@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseConfig } from "@/lib/supabase/config";
 
-const PROTECTED_PREFIXES = ["/stage", "/dashboard"];
+const PROTECTED_PREFIXES = ["/stage", "/dashboard", "/diagnosis"];
 
 export async function proxy(request: NextRequest) {
   const { url, anonKey, configured } = supabaseConfig();

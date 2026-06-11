@@ -45,6 +45,28 @@ export default async function HomePage() {
         )}
       </nav>
 
+      <Link
+        href="/diagnosis"
+        className="mb-10 flex items-center gap-4 rounded-2xl border-2 border-amber-300 bg-amber-100 px-6 py-5 transition-shadow hover:shadow-md"
+      >
+        <Image
+          src="/characters/byeolsaem.png"
+          alt="별쌤"
+          width={56}
+          height={56}
+          className="rounded-full shadow-sm"
+        />
+        <div className="flex-1">
+          <p className="text-lg font-semibold text-zinc-800">
+            진단평가 — 내 수준 알아보기
+          </p>
+          <p className="text-sm text-zinc-500">
+            별쌤의 7단계 진단으로 딱 맞는 수업에서 시작해요
+          </p>
+        </div>
+        <span className="text-2xl">→</span>
+      </Link>
+
       <div className="mb-10 flex items-center gap-4">
         <Image
           src="/characters/geulsaem.png"
