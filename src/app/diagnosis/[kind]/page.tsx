@@ -20,6 +20,7 @@ import {
   Kind,
   overallLevel,
 } from "@/lib/diagnosis/engine";
+import { generateGrowthGuidance } from "@/lib/diagnosis/growth-path";
 
 type Step = "loading" | "intro" | "quiz" | "saving" | "result";
 type Phase = "warmup" | "p1" | "p2";
@@ -298,6 +299,7 @@ export default function DiagnosisSession({
 
   if (step === "result" && result) {
     const domains = DOMAINS[kind];
+    const growth = generateGrowthGuidance(result.domainLevels, kind);
     return (
       <main className="mx-auto max-w-2xl px-4 py-12">
         <div className="rounded-2xl border-2 border-amber-200 bg-white p-8">
@@ -353,6 +355,43 @@ export default function DiagnosisSession({
               은(는) {result.deviation.strong.level}단계로 강점이고,{" "}
               <strong>{result.deviation.weak.name}</strong>은(는){" "}
               {result.deviation.weak.level}단계라 집중 보완이 필요해요.
+            </p>
+          )}
+
+          {growth.focus.length > 0 && (
+            <div className="mb-6 rounded-xl border border-emerald-100 bg-emerald-50/60 p-5">
+              <p className="mb-3 text-sm font-bold text-emerald-800">
+                🌱 다음 단계로 가려면?
+              </p>
+              <ul className="flex flex-col gap-3">
+                {growth.focus.map((f) => (
+                  <li
+                    key={f.code}
+                    className="text-sm leading-relaxed text-zinc-700"
+                  >
+                    <span className="font-semibold text-emerald-700">
+                      {f.name} {f.current}단계 → {f.next}단계
+                    </span>
+                    <br />
+                    {f.nextStep}
+                  </li>
+                ))}
+              </ul>
+              {growth.strength && (
+                <p className="mt-4 border-t border-emerald-100 pt-3 text-xs leading-relaxed text-zinc-500">
+                  지금은{" "}
+                  <strong className="text-zinc-600">
+                    {growth.strength.name}({growth.strength.level}단계)
+                  </strong>
+                  가 가장 튼튼해요. 강점을 살려 약한 영역을 끌어올려요.
+                </p>
+              )}
+            </div>
+          )}
+
+          {growth.maxed && (
+            <p className="mb-6 rounded-xl bg-emerald-50 p-4 text-center text-sm font-medium text-emerald-800">
+              모든 영역이 최고 단계예요. 정말 훌륭해요! 🎉
             </p>
           )}
 
