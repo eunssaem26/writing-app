@@ -2,44 +2,17 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { use, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Answered,
-  Band,
-  Bank,
-  buildAnchorSet,
-  buildPhase2,
-  buildWarmup,
-  decideBand,
-  deviationNotice,
-  DOMAINS,
-  groupByPassage,
-  isCorrect,
-  Item,
-  judgeDomainLevel,
-  Kind,
-  overallLevel,
-} from "@/lib/diagnosis/engine";
+import { use, useState } from "react";
+import { DOMAINS, Kind } from "@/lib/diagnosis/engine";
 import { generateGrowthGuidance } from "@/lib/diagnosis/growth-path";
+import type {
+  ClientItem,
+  ClientResponse,
+  FinalResult,
+  SessionBatch,
+} from "@/lib/diagnosis/session-types";
 
 type Step = "loading" | "intro" | "quiz" | "saving" | "result";
-type Phase = "warmup" | "p1" | "p2";
-type Stage = "base" | "a6" | "p2"; // base = 워밍업+2단계+4단계 앵커
-
-interface QueueEntry {
-  item: Item;
-  phase: Phase;
-}
-
-interface ResultData {
-  domainLevels: Record<string, number>;
-  avg: number;
-  level: number;
-  borderline: boolean;
-  deviation: ReturnType<typeof deviationNotice>;
-  correct: number;
-  wrong: number;
-}
 
 /** 문항 텍스트의 _밑줄_ 마커(_, __, ___)를 실제 밑줄로 렌더링 */
 function renderMarked(text: string) {
@@ -64,178 +37,98 @@ export default function DiagnosisSession({
   const kind: Kind = kindParam === "writing" ? "writing" : "reading";
   const kindLabel = kind === "reading" ? "읽기" : "글쓰기";
 
-  const [bank, setBank] = useState<Bank | null>(null);
-  const [step, setStep] = useState<Step>("loading");
-  const [queue, setQueue] = useState<QueueEntry[]>([]);
+  const [step, setStep] = useState<Step>("intro");
+  const [queue, setQueue] = useState<ClientItem[]>([]);
   const [index, setIndex] = useState(0);
-  const [answered, setAnswered] = useState<Answered[]>([]);
+  const [pending, setPending] = useState<ClientResponse[]>([]);
+  const [token, setToken] = useState<string>("");
+  const [passages, setPassages] = useState<Record<string, string>>({});
   const [choice, setChoice] = useState<number | null>(null);
   const [order, setOrder] = useState<number[]>([]);
-  const [result, setResult] = useState<ResultData | null>(null);
+  const [result, setResult] = useState<FinalResult | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "ok" | "fail">("idle");
-
-  const stage = useRef<Stage>("base");
-  const a6ByDomain = useRef<Record<string, Item>>({});
-  const used = useRef(new Set<string>());
-  const usedPassages = useRef(new Set<string>());
-
-  useEffect(() => {
-    (kind === "reading"
-      ? import("@/data/diagnosis/reading.json")
-      : import("@/data/diagnosis/writing.json")
-    ).then((m) => {
-      setBank(m.default as unknown as Bank);
-      setStep("intro");
-    });
-  }, [kind]);
-
-  const passageMap = useMemo(() => {
-    const m = new Map<string, string>();
-    bank?.passages.forEach((p) => m.set(p.passage_id, p.text));
-    return m;
-  }, [bank]);
-
-  function start() {
-    if (!bank) return;
-    const warmup = buildWarmup(bank, used.current);
-    const anchors = buildAnchorSet(bank, kind, used.current);
-    a6ByDomain.current = anchors.a6ByDomain;
-    const p1Base = [...groupByPassage(anchors.a2), ...groupByPassage(anchors.a4)];
-    p1Base.forEach((i) => i.passage_id && usedPassages.current.add(i.passage_id));
-    setQueue([
-      ...warmup.map((item) => ({ item, phase: "warmup" as Phase })),
-      ...p1Base.map((item) => ({ item, phase: "p1" as Phase })),
-    ]);
-    stage.current = "base";
-    setIndex(0);
-    setStep("quiz");
-  }
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(false);
+  const [startError, setStartError] = useState(false);
 
   const current = queue[index];
 
-  /** 현재 큐 끝에 도달했을 때 다음 구간을 조립한다 */
-  function extendOrFinish(all: Answered[]) {
-    if (!bank) return;
+  async function post(payload: object): Promise<SessionBatch> {
+    const r = await fetch("/api/diagnosis/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return (await r.json()) as SessionBatch;
+  }
 
-    if (stage.current === "base") {
-      // 사다리식: 4단계 앵커를 맞힌 영역에만 6단계 앵커 제시
-      const qualified = DOMAINS[kind]
-        .filter((d) =>
-          all.some(
-            (a) =>
-              a.phase === "p1" &&
-              a.item.domain_code === d.code &&
-              a.item.level === 4 &&
-              a.correct
-          )
-        )
-        .map((d) => a6ByDomain.current[d.code])
-        .filter(Boolean);
+  async function start() {
+    setStep("loading");
+    setStartError(false);
+    try {
+      const data = await post({ action: "start", kind });
+      setToken(data.token ?? "");
+      setPassages(data.passages ?? {});
+      setQueue(data.items ?? []);
+      setIndex(0);
+      setPending([]);
+      setStep("quiz");
+    } catch {
+      setStartError(true);
+      setStep("intro");
+    }
+  }
 
-      if (qualified.length > 0) {
-        const grouped = groupByPassage(qualified);
-        grouped.forEach((i) => i.passage_id && usedPassages.current.add(i.passage_id));
-        stage.current = "a6";
-        setQueue((q) => [...q, ...grouped.map((item) => ({ item, phase: "p1" as Phase }))]);
+  /** 배치 경계에서 지금까지의 응답을 서버로 보내 채점·다음 배치를 받는다 */
+  async function sync(batch: ClientResponse[]) {
+    setSyncing(true);
+    setSyncError(false);
+    try {
+      const data = await post({ action: "answer", token, responses: batch });
+      setPending([]);
+      if (data.token) setToken(data.token);
+      if (data.result) {
+        setResult(data.result);
+        setSaveState(data.saved ? "ok" : "fail");
+        setStep("result");
+      } else {
+        setPassages((p) => ({ ...p, ...(data.passages ?? {}) }));
+        setQueue((q) => [...q, ...(data.items ?? [])]);
         setIndex((i) => i + 1);
-        return;
       }
-      // 6단계 진출 영역이 없으면 곧장 2차로
+    } catch {
+      setSyncError(true); // pending 유지 → 재시도 가능
+    } finally {
+      setSyncing(false);
     }
-
-    if (stage.current === "base" || stage.current === "a6") {
-      const bands: Record<string, Band> = {};
-      for (const d of DOMAINS[kind]) {
-        const anchors = all.filter(
-          (a) => a.phase === "p1" && a.item.domain_code === d.code
-        );
-        const at = (lv: number) =>
-          anchors.find((a) => a.item.level === lv)?.correct ?? false; // 미제시 6단계 = 오답 처리
-        bands[d.code] = decideBand(at(2), at(4), at(6));
-      }
-      const p2 = groupByPassage(
-        buildPhase2(bank, kind, bands, used.current, usedPassages.current)
-      );
-      stage.current = "p2";
-      setQueue((q) => [...q, ...p2.map((item) => ({ item, phase: "p2" as Phase }))]);
-      setIndex((i) => i + 1);
-      return;
-    }
-
-    finish(all);
   }
 
   function submitAnswer(idk = false) {
-    if (!bank || !current) return;
-    const response = Array.isArray(current.item.answer) ? order : choice;
-    if (!idk && (response === null || (Array.isArray(response) && response.length !== current.item.choices.length))) return;
+    if (!current) return;
+    const response = current.ordering ? order : choice;
+    if (
+      !idk &&
+      (response === null ||
+        (Array.isArray(response) && response.length !== current.choices.length))
+    )
+      return;
 
-    const record: Answered = {
-      item: current.item,
-      correct: idk ? false : isCorrect(current.item, response as number | number[]),
-      phase: current.phase,
-      ...(idk ? { idk: true } : {}),
+    const resp: ClientResponse = {
+      id: current.item_id,
+      response: idk ? null : (response as number | number[]),
+      idk,
     };
-    const nextAnswered = [...answered, record];
-    setAnswered(nextAnswered);
+    const nextPending = [...pending, resp];
+    setPending(nextPending);
     setChoice(null);
     setOrder([]);
 
     if (index === queue.length - 1) {
-      extendOrFinish(nextAnswered);
+      void sync(nextPending); // 배치 끝 → 서버 채점
     } else {
       setIndex(index + 1);
     }
-  }
-
-  async function finish(all: Answered[]) {
-    const domainLevels: Record<string, number> = {};
-    for (const d of DOMAINS[kind]) {
-      domainLevels[d.code] = judgeDomainLevel(all, d.code);
-    }
-    const overall = overallLevel(domainLevels, kind);
-    const scored = all.filter((a) => a.phase !== "warmup");
-    const res: ResultData = {
-      domainLevels,
-      avg: overall.avg,
-      level: overall.level,
-      borderline: overall.borderline,
-      deviation: deviationNotice(domainLevels, kind),
-      correct: scored.filter((a) => a.correct).length,
-      wrong: scored.filter((a) => !a.correct).length,
-    };
-    setResult(res);
-    setStep("saving");
-
-    try {
-      const r = await fetch("/api/diagnosis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind,
-          level: res.level,
-          correct_count: res.correct,
-          wrong_count: res.wrong,
-          detail: {
-            domain_levels: domainLevels,
-            weighted_avg: res.avg,
-            borderline: res.borderline,
-            items: scored.map((a) => ({
-              item_id: a.item.item_id,
-              level: a.item.level,
-              domain: a.item.domain_code,
-              correct: a.correct,
-              phase: a.phase,
-              ...(a.idk ? { idk: true } : {}),
-            })),
-          },
-        }),
-      });
-      setSaveState(r.ok ? "ok" : "fail");
-    } catch {
-      setSaveState("fail");
-    }
-    setStep("result");
   }
 
   // ───────────────────────── 화면 ─────────────────────────
@@ -284,6 +177,11 @@ export default function DiagnosisSession({
           >
             시작하기
           </button>
+          {startError && (
+            <p className="mt-4 text-sm text-red-500">
+              진단을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
+            </p>
+          )}
         </div>
       </main>
     );
@@ -422,14 +320,39 @@ export default function DiagnosisSession({
   }
 
   // ─────────────── 문항 풀이 화면 ───────────────
+  if (syncError) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-16 text-center">
+        <p className="mb-5 text-zinc-500">
+          다음 문제를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.
+        </p>
+        <button
+          onClick={() => sync(pending)}
+          className="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700"
+        >
+          다시 시도하기
+        </button>
+      </main>
+    );
+  }
+
+  if (syncing) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-16 text-center text-zinc-400">
+        다음 문제를 준비하고 있어요...
+      </main>
+    );
+  }
+
   if (!current) return null;
-  const item = current.item;
-  const passage = item.passage_id ? passageMap.get(item.passage_id) : null;
+  const item = current;
+  const passage = item.passage_id ? passages[item.passage_id] : null;
   const samePassageAsPrev =
-    !!item.passage_id && queue[index - 1]?.item.passage_id === item.passage_id;
-  const isOrdering = Array.isArray(item.answer);
+    !!item.passage_id && queue[index - 1]?.passage_id === item.passage_id;
+  const isOrdering = item.ordering;
   const isWarm = current.phase === "warmup";
-  const scoredIndex = index - queue.filter((q, i) => i < index && q.phase === "warmup").length;
+  const scoredIndex =
+    index - queue.filter((q, i) => i < index && q.phase === "warmup").length;
   const progress = (index + 1) / Math.max(queue.length, 27);
 
   return (
