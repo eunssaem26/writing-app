@@ -11,10 +11,6 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   // CRON_SECRET이 설정돼 있으면 Vercel Cron 호출만 허용한다(외부 남용 방지). 선택 사항.
   const secret = process.env.CRON_SECRET;
-  // 진단용: ?diag=1 이면 런타임이 CRON_SECRET을 보는지 여부만(값 제외) 반환
-  if (new URL(request.url).searchParams.get("diag") === "1") {
-    return NextResponse.json({ secretConfigured: !!secret });
-  }
   if (secret) {
     const auth = request.headers.get("authorization");
     if (auth !== `Bearer ${secret}`) {
