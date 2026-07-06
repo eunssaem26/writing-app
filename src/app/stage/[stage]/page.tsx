@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { stage1Lessons } from "@/prompts/stage1";
 import type { LessonConfig } from "@/prompts/types";
@@ -7,6 +8,10 @@ const STAGE_LESSONS: Record<number, LessonConfig[]> = {
   1: stage1Lessons,
 };
 
+// 진단은 학생을 1~7단계로 배정한다. 아직 수업이 준비되지 않은 단계라도
+// 404로 떨어뜨리지 않고 "준비 중" 안내를 보여, 진단→수업 흐름이 끊기지 않게 한다.
+const MAX_STAGE = 7;
+
 export default async function StagePage({
   params,
 }: {
@@ -14,8 +19,53 @@ export default async function StagePage({
 }) {
   const { stage: stageStr } = await params;
   const stage = Number(stageStr);
+
+  // 1~7 정수가 아닌 진짜 잘못된 주소만 404 처리
+  if (!Number.isInteger(stage) || stage < 1 || stage > MAX_STAGE) notFound();
+
   const lessons = STAGE_LESSONS[stage];
-  if (!lessons) notFound();
+
+  // 유효한 단계지만 아직 수업이 없는 경우 — 친절한 "준비 중" 안내
+  if (!lessons) {
+    return (
+      <main className="mx-auto max-w-xl px-4 py-12">
+        <Link href="/" className="mb-6 inline-block text-sm text-zinc-400 hover:text-zinc-600">
+          ← 처음으로
+        </Link>
+        <div className="rounded-2xl border-2 border-amber-200 bg-white p-8 text-center shadow-sm">
+          <Image
+            src="/characters/hogi.png"
+            alt="호기"
+            width={80}
+            height={80}
+            className="mx-auto mb-4 rounded-full shadow-md"
+          />
+          <p className="mb-1 text-sm font-semibold text-amber-700">{stage}단계</p>
+          <h1 className="mb-3 text-2xl font-bold text-zinc-800">
+            이 단계는 지금 준비하고 있어요
+          </h1>
+          <p className="mx-auto mb-7 max-w-sm text-sm leading-relaxed text-zinc-500">
+            {stage}단계 수업을 정성껏 만드는 중이에요. 준비가 끝나면 가장 먼저 알려드릴게요.
+            그동안 지금 열려 있는 단계부터 함께 시작해 볼까요? 🌱
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Link
+              href="/stage/1"
+              className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+            >
+              1단계부터 시작하기
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-xl border-2 border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+            >
+              내 학습 현황 보기
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-xl px-4 py-12">
