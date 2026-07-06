@@ -15,16 +15,32 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const { configured } = supabaseConfig();
 
+  // Supabase 서버에 아예 닿지 못할 때(프로젝트 일시정지·네트워크 장애 등) 뜨는
+  // "Failed to fetch" 류 에러를 사람이 읽을 수 있는 안내로 바꿔준다.
+  const CONNECTION_MESSAGE =
+    "We can't reach the login server right now — please try again in a few minutes or contact your teacher.\n지금 로그인 서버에 연결할 수 없어요. 잠시 후 다시 시도하거나 선생님께 문의해 주세요.";
+
+  function isConnectionError(message?: string) {
+    return !!message && /failed to fetch|networkerror|load failed|fetch/i.test(message);
+  }
+
   async function signInWithGoogle() {
     setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
-    });
-    if (error) setError(error.message);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
+      });
+      if (error) {
+        setError(isConnectionError(error.message) ? CONNECTION_MESSAGE : error.message);
+      }
+    } catch (err) {
+      setError(CONNECTION_MESSAGE);
+      console.error("[login] Google sign-in failed", err);
+    }
   }
 
   async function signInWithEmail(e: React.FormEvent) {
@@ -32,28 +48,36 @@ function LoginForm() {
     if (!email.trim()) return;
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        // 사전 등록제: 등록된 학생 이메일만 로그인 링크 발송 (자동 가입 차단)
-        shouldCreateUser: false,
-        emailRedirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
-    });
-    setLoading(false);
-    if (error) {
-      const notRegistered =
-        /signups? not allowed/i.test(error.message) ||
-        error.code === "otp_disabled" ||
-        error.code === "signup_disabled";
-      setError(
-        notRegistered
-          ? "This email isn't registered yet — please contact your teacher.\n아직 등록되지 않은 이메일이에요. 선생님께 문의해 주세요."
-          : error.message
-      );
-    } else {
-      setSent(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          // 사전 등록제: 등록된 학생 이메일만 로그인 링크 발송 (자동 가입 차단)
+          shouldCreateUser: false,
+          emailRedirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
+      });
+      setLoading(false);
+      if (error) {
+        const notRegistered =
+          /signups? not allowed/i.test(error.message) ||
+          error.code === "otp_disabled" ||
+          error.code === "signup_disabled";
+        if (notRegistered) {
+          setError(
+            "This email isn't registered yet — please contact your teacher.\n아직 등록되지 않은 이메일이에요. 선생님께 문의해 주세요."
+          );
+        } else {
+          setError(isConnectionError(error.message) ? CONNECTION_MESSAGE : error.message);
+        }
+      } else {
+        setSent(true);
+      }
+    } catch (err) {
+      setLoading(false);
+      setError(CONNECTION_MESSAGE);
+      console.error("[login] email sign-in failed", err);
     }
   }
 
