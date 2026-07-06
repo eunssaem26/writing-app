@@ -2,14 +2,26 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { stage1Lessons } from "@/prompts/stage1";
+import { stage2Lessons } from "@/prompts/stage2";
+import { stage3Lessons } from "@/prompts/stage3";
+import { stage4Lessons } from "@/prompts/stage4";
+import { stage5Lessons } from "@/prompts/stage5";
+import { stage6Lessons } from "@/prompts/stage6";
+import { stage7Lessons } from "@/prompts/stage7";
 import type { LessonConfig } from "@/prompts/types";
 
 const STAGE_LESSONS: Record<number, LessonConfig[]> = {
   1: stage1Lessons,
+  2: stage2Lessons,
+  3: stage3Lessons,
+  4: stage4Lessons,
+  5: stage5Lessons,
+  6: stage6Lessons,
+  7: stage7Lessons,
 };
 
-// 진단은 학생을 1~7단계로 배정한다. 아직 수업이 준비되지 않은 단계라도
-// 404로 떨어뜨리지 않고 "준비 중" 안내를 보여, 진단→수업 흐름이 끊기지 않게 한다.
+// 진단은 학생을 1~7단계로 배정한다. 모든 단계에 수업이 준비돼 있지만,
+// 혹시 특정 단계 목록이 비어도 404 대신 "준비 중" 안내로 흐름을 잇는다(안전망).
 const MAX_STAGE = 7;
 
 export default async function StagePage({
