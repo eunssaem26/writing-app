@@ -6,12 +6,25 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { supabaseConfig } from "@/lib/supabase/config";
 
+// 사전 등록되지 않은 이메일(구글·이메일 공통) 안내 — 초대제 유지.
+const NOT_REGISTERED_MSG =
+  "This email isn't registered yet — please contact your teacher.\n아직 등록되지 않은 이메일이에요. 선생님께 문의해 주세요.";
+
+// /auth/callback 이 붙여준 ?error= 값을 첫 화면 안내 문구로 변환.
+function errorFromParam(err: string | null): string | null {
+  if (err === "not_registered") return NOT_REGISTERED_MSG;
+  if (err === "auth")
+    return "Something went wrong signing in — please try again.\n로그인 중 문제가 있었어요. 다시 시도해 주세요.";
+  return null;
+}
+
 function LoginForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/dashboard";
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // 콜백에서 넘어온 ?error= 파라미터가 있으면 첫 화면부터 안내를 띄운다.
+  const [error, setError] = useState<string | null>(errorFromParam(searchParams.get("error")));
   const [loading, setLoading] = useState(false);
   const { configured } = supabaseConfig();
 
@@ -65,9 +78,7 @@ function LoginForm() {
           error.code === "otp_disabled" ||
           error.code === "signup_disabled";
         if (notRegistered) {
-          setError(
-            "This email isn't registered yet — please contact your teacher.\n아직 등록되지 않은 이메일이에요. 선생님께 문의해 주세요."
-          );
+          setError(NOT_REGISTERED_MSG);
         } else {
           setError(isConnectionError(error.message) ? CONNECTION_MESSAGE : error.message);
         }
