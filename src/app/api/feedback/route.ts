@@ -4,7 +4,7 @@ import { SYSTEM_PROMPT } from "@/lib/claude/system-prompt";
 import { stripJson } from "@/lib/claude/strip-json";
 import { buildUserPrompt } from "@/lib/claude/build-user-prompt";
 import { getLessonConfig } from "@/prompts";
-import type { FeedbackResult } from "@/lib/claude/types";
+import { normalizeFeedback } from "@/lib/claude/validate";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseConfig } from "@/lib/supabase/config";
 
@@ -69,7 +69,8 @@ export async function POST(req: NextRequest) {
       response.content[0].type === "text" ? response.content[0].text : "";
 
     const jsonText = stripJson(rawText);
-    const result: FeedbackResult = JSON.parse(jsonText);
+    // 파싱 + 스키마 검증·정규화 (필드 누락/형변형으로 화면이 깨지는 것 방지)
+    const result = normalizeFeedback(JSON.parse(jsonText));
 
     // 수업 기록 저장 (실패해도 피드백 응답은 그대로 반환)
     if (studentId) {
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
         "글쌤(AI) 연결 설정에 문제가 있어요. 선생님께 알려 주세요!";
     } else if (/rate.?limit|overloaded|429|529/i.test(raw)) {
       message = "지금 글쌤이 너무 바빠요. 1분 뒤에 다시 시도해 주세요.";
-    } else if (/JSON|Unexpected token/i.test(raw)) {
+    } else if (/JSON|Unexpected token|schema/i.test(raw)) {
       message =
         "피드백을 읽어 오는 중 문제가 생겼어요. 한 번만 다시 시도해 주세요.";
     }
