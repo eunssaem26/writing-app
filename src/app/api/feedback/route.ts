@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
   try {
     // 허가된(로그인한) 학생만 AI 피드백 사용 가능 — API 직접 호출로 인한 비용 누수 차단
     let studentId: string | null = null;
+    let studentLang: "ko" | "en" = "ko";
     if (supabaseConfig().configured) {
       const supabase = await createClient();
       const {
@@ -26,6 +27,13 @@ export async function POST(req: NextRequest) {
         );
       }
       studentId = user.id;
+      // 학생의 UI 언어 — 영어권(en) 학생은 heritage 단계로 편입해도 영어 피드백을 받는다
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("language")
+        .eq("id", user.id)
+        .single<{ language: "ko" | "en" }>();
+      if (profile?.language === "en") studentLang = "en";
     }
 
     const body = await req.json();
@@ -50,9 +58,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const userPrompt = buildUserPrompt(lesson, student_text);
-    // L2(영어권 초급) 차시는 영어 피드백 시스템 프롬프트 사용
-    const systemPrompt = lesson.track === "l2" ? SYSTEM_PROMPT_L2 : SYSTEM_PROMPT;
+    // 영어 피드백 조건: L2 초급 차시이거나, 학생이 영어권(en)이라 heritage 단계로
+    // 편입한 경우 — 편입 후에도 영어 피드백을 이어받아 '중급 합류'의 벽을 낮춘다.
+    const english = lesson.track === "l2" || studentLang === "en";
+    const userPrompt = buildUserPrompt(lesson, student_text, english);
+    const systemPrompt = english ? SYSTEM_PROMPT_L2 : SYSTEM_PROMPT;
 
     const response = await client.messages.create({
       model: lesson.model,
@@ -90,7 +100,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json(result);
+    // english: 클라이언트가 피드백 패널 라벨 언어를 서버 판단과 일치시키도록 함께 반환
+    return NextResponse.json({ feedback: result, english });
   } catch (err) {
     console.error("[/api/feedback]", err);
     // 학생에게는 원인별 한국어 안내만 보여주고, 원문 에러는 서버 로그에만 남긴다

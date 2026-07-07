@@ -1,14 +1,19 @@
 import type { LessonConfig } from "@/prompts/types";
 import { stageLabel } from "@/prompts";
 
-export function buildUserPrompt(lesson: LessonConfig, studentText: string): string {
+export function buildUserPrompt(
+  lesson: LessonConfig,
+  studentText: string,
+  // 피드백을 영어로 낼지 — 기본은 L2 트랙 차시. 학생 언어(en)에 따라 상위에서 덮어씀.
+  english: boolean = lesson.track === "l2"
+): string {
   const sentences = studentText
     .split("\n")
     .map((line, i) => `${i + 1}. ${line}`)
     .join("\n");
 
   const criteriaType = lesson.is_rubric ? "루브릭 항목" : "평가 기준";
-  const isL2 = lesson.track === "l2";
+  const isL2 = english;
 
   // L2는 영어 피드백 + 영어 result_label, heritage는 기존 한국어 그대로.
   const resultLabelSchema = isL2

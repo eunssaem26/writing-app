@@ -19,6 +19,7 @@ export default function WritePage({
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
+  const [englishFeedback, setEnglishFeedback] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
@@ -51,8 +52,9 @@ export default function WritePage({
           data?.error ?? "문제가 생겼어요. 잠시 후 다시 시도해 주세요."
         );
       }
-      const data: FeedbackResult = await res.json();
-      setFeedback(data);
+      const data: { feedback: FeedbackResult; english: boolean } = await res.json();
+      setFeedback(data.feedback);
+      setEnglishFeedback(!!data.english);
       setAttempt((n) => n + 1);
     } catch (err) {
       // fetch 실패(네트워크 끊김 등)는 영어 메시지가 나오므로 한국어로 바꿔준다
@@ -124,7 +126,7 @@ export default function WritePage({
           <FeedbackPanel
             feedback={feedback}
             studentText={text}
-            english={lesson.track === "l2"}
+            english={englishFeedback}
           />
 
           <div className="flex gap-3">
