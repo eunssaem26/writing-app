@@ -8,6 +8,8 @@ import { stage4Lessons } from "@/prompts/stage4";
 import { stage5Lessons } from "@/prompts/stage5";
 import { stage6Lessons } from "@/prompts/stage6";
 import { stage7Lessons } from "@/prompts/stage7";
+import { l2Beginner1Lessons } from "@/prompts/l2-beginner1";
+import { isValidStage, stageLabel } from "@/prompts";
 import type { LessonConfig } from "@/prompts/types";
 
 const STAGE_LESSONS: Record<number, LessonConfig[]> = {
@@ -18,11 +20,8 @@ const STAGE_LESSONS: Record<number, LessonConfig[]> = {
   5: stage5Lessons,
   6: stage6Lessons,
   7: stage7Lessons,
+  101: l2Beginner1Lessons, // L2 초급 1 (영어권 온램프)
 };
-
-// 진단은 학생을 1~7단계로 배정한다. 모든 단계에 수업이 준비돼 있지만,
-// 혹시 특정 단계 목록이 비어도 404 대신 "준비 중" 안내로 흐름을 잇는다(안전망).
-const MAX_STAGE = 7;
 
 export default async function StagePage({
   params,
@@ -32,8 +31,8 @@ export default async function StagePage({
   const { stage: stageStr } = await params;
   const stage = Number(stageStr);
 
-  // 1~7 정수가 아닌 진짜 잘못된 주소만 404 처리
-  if (!Number.isInteger(stage) || stage < 1 || stage > MAX_STAGE) notFound();
+  // heritage 1~7 + L2 온램프(101~102)가 아닌 진짜 잘못된 주소만 404
+  if (!isValidStage(stage)) notFound();
 
   const lessons = STAGE_LESSONS[stage];
 
@@ -52,7 +51,7 @@ export default async function StagePage({
             height={80}
             className="mx-auto mb-4 rounded-full shadow-md"
           />
-          <p className="mb-1 text-sm font-semibold text-amber-700">{stage}단계</p>
+          <p className="mb-1 text-sm font-semibold text-amber-700">{stageLabel(stage)}</p>
           <h1 className="mb-3 text-2xl font-bold text-zinc-800">
             이 단계는 지금 준비하고 있어요
           </h1>
@@ -84,7 +83,7 @@ export default async function StagePage({
       <Link href="/" className="mb-6 inline-block text-sm text-zinc-400 hover:text-zinc-600">
         ← 처음으로
       </Link>
-      <h1 className="mb-8 text-2xl font-bold text-zinc-800">{stage}단계 차시 목록</h1>
+      <h1 className="mb-8 text-2xl font-bold text-zinc-800">{stageLabel(stage)} 차시 목록</h1>
       <div className="flex flex-col gap-3">
         {lessons.map((lesson) => (
           <Link

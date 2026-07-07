@@ -67,6 +67,29 @@ export default async function HomePage() {
         <span className="text-2xl">→</span>
       </Link>
 
+      {/* 영어권 순수 초급자 진입 — 한글부터 (L2 트랙 온램프) */}
+      <Link
+        href="/stage/101"
+        className="mb-10 flex items-center gap-4 rounded-2xl border-2 border-teal-300 bg-teal-50 px-6 py-5 transition-shadow hover:shadow-md"
+      >
+        <Image
+          src="/characters/hogi.png"
+          alt="호기"
+          width={56}
+          height={56}
+          className="rounded-full shadow-sm"
+        />
+        <div className="flex-1">
+          <p className="text-lg font-semibold text-zinc-800">
+            New to Korean? Start from Hangul
+          </p>
+          <p className="text-sm text-zinc-500">
+            한글부터 차근차근 — for English speakers beginning Korean (TOPIK&nbsp;1)
+          </p>
+        </div>
+        <span className="text-2xl">→</span>
+      </Link>
+
       <div className="mb-10 flex items-center gap-4">
         <Image
           src="/characters/geulsaem.png"

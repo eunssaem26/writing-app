@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { getLessonConfig } from "@/prompts";
+import { getLessonConfig, stageLabel } from "@/prompts";
 import type { FeedbackResult } from "@/lib/claude/types";
 import FeedbackPanel from "@/components/FeedbackPanel";
 
@@ -78,12 +78,12 @@ export default function WritePage({
         href={`/stage/${stage}`}
         className="mb-4 inline-block text-sm text-zinc-400 hover:text-zinc-600"
       >
-        ← {stage}단계 목록
+        ← {stageLabel(stage)} 목록
       </Link>
 
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">
-          {stage}단계 {lessonNum}차시
+          {stageLabel(stage)} · {lessonNum}차시
         </p>
         <h1 className="text-2xl font-bold text-zinc-800">{lesson.lesson_title}</h1>
         <p className="mt-1 text-sm text-zinc-500">{lesson.lesson_summary}</p>

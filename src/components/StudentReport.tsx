@@ -3,7 +3,7 @@ import Link from "next/link";
 import { DOMAINS, deviationNotice, type Kind } from "@/lib/diagnosis/engine";
 import { generateGrowthGuidance } from "@/lib/diagnosis/growth-path";
 import { parseDiagDetail, parseFeedback } from "@/lib/diagnosis/report";
-import { STAGE_LESSON_COUNTS } from "@/prompts";
+import { STAGE_LESSON_COUNTS, stageLabel } from "@/prompts";
 import type { DashLabels } from "@/lib/dashboard-labels";
 import type {
   DiagnosisResult,
@@ -225,9 +225,8 @@ export default function StudentReport({
               const pct = total > 0 ? (passed / total) * 100 : 0;
               return (
                 <div key={stage} className="flex items-center gap-3">
-                  <span className="w-16 shrink-0 text-sm text-zinc-600">
-                    {stage}
-                    {t.stage}
+                  <span className="w-20 shrink-0 text-sm text-zinc-600">
+                    {stageLabel(stage)}
                   </span>
                   <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
                     <div
@@ -266,8 +265,7 @@ export default function StudentReport({
               <li key={l.id} className="rounded-lg bg-emerald-50 px-4 py-2 text-sm">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2 font-medium text-zinc-700">
-                    {l.stage}
-                    {t.stage} · {l.lesson}
+                    {stageLabel(l.stage)} · {l.lesson}
                     {t.lesson}
                     {fb.pass === true && (
                       <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">
