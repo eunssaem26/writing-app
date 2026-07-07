@@ -9,6 +9,7 @@ import { stage5Lessons } from "@/prompts/stage5";
 import { stage6Lessons } from "@/prompts/stage6";
 import { stage7Lessons } from "@/prompts/stage7";
 import { l2Beginner1Lessons } from "@/prompts/l2-beginner1";
+import { l2Beginner2Lessons } from "@/prompts/l2-beginner2";
 import { isValidStage, stageLabel } from "@/prompts";
 import type { LessonConfig } from "@/prompts/types";
 
@@ -21,6 +22,7 @@ const STAGE_LESSONS: Record<number, LessonConfig[]> = {
   6: stage6Lessons,
   7: stage7Lessons,
   101: l2Beginner1Lessons, // L2 초급 1 (영어권 온램프)
+  102: l2Beginner2Lessons, // L2 초급 2
 };
 
 export default async function StagePage({
@@ -101,6 +103,30 @@ export default async function StagePage({
           </Link>
         ))}
       </div>
+
+      {/* L2 온램프 진행 안내: 초급1 → 초급2 → 기존 진단 편입 */}
+      {stage === 101 && (
+        <Link
+          href="/stage/102"
+          className="mt-5 flex items-center justify-between rounded-xl border-2 border-teal-200 bg-teal-50 px-5 py-4 text-sm transition-shadow hover:shadow-sm"
+        >
+          <span className="font-medium text-teal-800">
+            Finished 초급 1? Next → L2 초급 2 (past &amp; future tense)
+          </span>
+          <span className="text-lg text-teal-700">→</span>
+        </Link>
+      )}
+      {stage === 102 && (
+        <Link
+          href="/diagnosis"
+          className="mt-5 flex items-center justify-between rounded-xl border-2 border-amber-200 bg-amber-50 px-5 py-4 text-sm transition-shadow hover:shadow-sm"
+        >
+          <span className="font-medium text-amber-800">
+            Finished 초급 2? Take the placement test to join the main course →
+          </span>
+          <span className="text-lg text-amber-700">→</span>
+        </Link>
+      )}
     </main>
   );
 }

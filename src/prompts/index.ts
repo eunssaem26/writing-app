@@ -7,9 +7,11 @@ import { stage5Lessons } from "./stage5";
 import { stage6Lessons } from "./stage6";
 import { stage7Lessons } from "./stage7";
 import { l2Beginner1Lessons } from "./l2-beginner1";
+import { l2Beginner2Lessons } from "./l2-beginner2";
 
 const allLessons: LessonConfig[] = [
   ...l2Beginner1Lessons,
+  ...l2Beginner2Lessons,
   ...stage1Lessons,
   ...stage2Lessons,
   ...stage3Lessons,
