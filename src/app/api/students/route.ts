@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const email = String(body.email ?? "").trim().toLowerCase();
   const name = String(body.name ?? "").trim();
+  // 학습자 유형: heritage(재외동포·한국어 UI) / l2(영어권 초급·영어 UI)
+  const track = body.track === "l2" ? "l2" : "heritage";
+  const language = body.language === "en" ? "en" : "ko";
   if (!email || !email.includes("@")) {
     return NextResponse.json(
       { error: "올바른 이메일을 입력해 주세요." },
@@ -59,12 +62,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 이름이 있으면 프로필에도 반영 (트리거가 만든 프로필 갱신)
-  if (name && data.user) {
-    await admin
-      .from("profiles")
-      .update({ display_name: name })
-      .eq("id", data.user.id);
+  // 트리거가 만든 프로필에 트랙·언어(·이름) 반영
+  if (data.user) {
+    const update: { track: string; language: string; display_name?: string } = {
+      track,
+      language,
+    };
+    if (name) update.display_name = name;
+    await admin.from("profiles").update(update).eq("id", data.user.id);
   }
 
   return NextResponse.json({ ok: true });

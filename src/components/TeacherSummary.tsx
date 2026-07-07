@@ -95,6 +95,11 @@ export default function TeacherSummary({
                     >
                       {s.display_name ?? s.id.slice(0, 8)}
                     </a>
+                    {s.track === "l2" && (
+                      <span className="ml-1.5 rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-bold text-teal-700 align-middle">
+                        L2
+                      </span>
+                    )}
                   </td>
                   <td className="py-2.5 px-3 text-center tabular-nums">
                     {r !== null ? (
