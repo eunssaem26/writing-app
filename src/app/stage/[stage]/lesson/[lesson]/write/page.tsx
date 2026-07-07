@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { getLessonConfig, stageLabel } from "@/prompts";
 import type { FeedbackResult } from "@/lib/claude/types";
@@ -22,6 +22,31 @@ export default function WritePage({
   const [englishFeedback, setEnglishFeedback] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+
+  // ── 자동저장(로컬): 새로고침·와이파이 끊김에도 쓰던 글을 지키기 ──
+  const draftKey = `byeolsaem:draft:${stageStr}:${lessonStr}`;
+  const draftRestored = useRef(false);
+
+  useEffect(() => {
+    if (draftRestored.current) return;
+    draftRestored.current = true;
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) setText(saved);
+    } catch {
+      /* 무시 */
+    }
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftRestored.current) return;
+    try {
+      if (text) localStorage.setItem(draftKey, text);
+      else localStorage.removeItem(draftKey);
+    } catch {
+      /* 저장 실패(용량·프라이빗 모드)는 무시 */
+    }
+  }, [draftKey, text]);
 
   if (!lesson) {
     return (
@@ -56,6 +81,13 @@ export default function WritePage({
       setFeedback(data.feedback);
       setEnglishFeedback(!!data.english);
       setAttempt((n) => n + 1);
+      if (data.feedback.pass) {
+        try {
+          localStorage.removeItem(draftKey); // 통과 → 저장된 초안 정리
+        } catch {
+          /* 무시 */
+        }
+      }
     } catch (err) {
       // fetch 실패(네트워크 끊김 등)는 영어 메시지가 나오므로 한국어로 바꿔준다
       const msg = err instanceof Error ? err.message : String(err);

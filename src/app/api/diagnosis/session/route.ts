@@ -6,6 +6,8 @@ import type { ClientResponse } from "@/lib/diagnosis/session-types";
 import type { Kind } from "@/lib/diagnosis/engine";
 
 export const dynamic = "force-dynamic";
+// 진단 채점은 가볍지만(Claude 미사용) 안전 마진으로 타임아웃을 넉넉히 둔다.
+export const maxDuration = 60;
 
 // 진단 세션 — 정답/채점은 전부 서버에서. 클라이언트는 문항을 받고 응답만 보낸다.
 export async function POST(req: NextRequest) {

@@ -10,6 +10,11 @@ import { supabaseConfig } from "@/lib/supabase/config";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Sonnet 첨삭(1400~1800토큰)은 생성에 12~28초 걸린다. 이 설정이 없으면
+// Vercel 함수가 플랜 기본 타임아웃(Hobby ~10초)에 먼저 잘려 학생이 매번
+// 에러를 본다. Hobby 상한인 60초로 올려 안전하게 완주시킨다.
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     // 허가된(로그인한) 학생만 AI 피드백 사용 가능 — API 직접 호출로 인한 비용 누수 차단

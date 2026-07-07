@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { use, useState } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { DOMAINS, Kind } from "@/lib/diagnosis/engine";
 import { generateGrowthGuidance } from "@/lib/diagnosis/growth-path";
 import type {
@@ -53,6 +53,55 @@ export default function DiagnosisSession({
 
   const current = queue[index];
 
+  // ── 자동저장(로컬): 새로고침·와이파이 끊김에도 20분 진단을 이어서 풀게 한다 ──
+  const storageKey = `byeolsaem:diag:${kind}`;
+  const restored = useRef(false);
+
+  // 마운트 시 저장된 진행이 있으면 인트로를 건너뛰고 이어서 풀기
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      // 토큰+문항이 있는 유효한 진행 스냅샷만 복원
+      if (
+        s &&
+        typeof s.token === "string" &&
+        s.token &&
+        Array.isArray(s.queue) &&
+        s.queue.length
+      ) {
+        setToken(s.token);
+        setQueue(s.queue);
+        setIndex(typeof s.index === "number" ? s.index : 0);
+        setPending(Array.isArray(s.pending) ? s.pending : []);
+        setPassages(
+          s.passages && typeof s.passages === "object" ? s.passages : {}
+        );
+        setStep("quiz");
+      }
+    } catch {
+      /* 손상된 스냅샷은 무시하고 새로 시작 */
+    }
+  }, [storageKey]);
+
+  // 문항 풀이 상태를 저장. 서버 동기화 중(syncing)에는 저장을 건너뛰어
+  // 중복 응답 없이 안전하게 이어지도록 한다.
+  useEffect(() => {
+    if (!restored.current) return;
+    if (step !== "quiz" || syncing) return;
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ token, queue, index, pending, passages })
+      );
+    } catch {
+      /* 저장 실패(용량 초과·프라이빗 모드)는 무시 */
+    }
+  }, [storageKey, step, syncing, token, queue, index, pending, passages]);
+
   async function post(payload: object): Promise<SessionBatch> {
     const r = await fetch("/api/diagnosis/session", {
       method: "POST",
@@ -92,6 +141,11 @@ export default function DiagnosisSession({
         setResult(data.result);
         setSaveState(data.saved ? "ok" : "fail");
         setStep("result");
+        try {
+          localStorage.removeItem(storageKey); // 완료 → 저장된 진행 정리
+        } catch {
+          /* 무시 */
+        }
       } else {
         setPassages((p) => ({ ...p, ...(data.passages ?? {}) }));
         setQueue((q) => [...q, ...(data.items ?? [])]);
