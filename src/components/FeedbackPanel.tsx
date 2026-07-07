@@ -6,10 +6,34 @@ import type { FeedbackResult } from "@/lib/claude/types";
 interface Props {
   feedback: FeedbackResult;
   studentText: string;
+  english?: boolean; // L2(영어권 초급) 차시면 UI 라벨도 영어로
 }
 
-export default function FeedbackPanel({ feedback, studentText }: Props) {
+const UI = {
+  ko: {
+    coach: "글쌤의 피드백",
+    handoff: "선생님 확인이 필요합니다:",
+    total: "총점",
+    strengths: "잘한 점",
+    improvements: "고쳐볼 점",
+    tip: "오늘의 팁",
+    sentence: (n: number) => `${n}번 문장`,
+  },
+  en: {
+    coach: "Geulsaem's feedback",
+    handoff: "Needs teacher review:",
+    total: "Total",
+    strengths: "What you did well",
+    improvements: "Let's improve",
+    tip: "Today's tip",
+    sentence: (n: number) => `Sentence ${n}`,
+  },
+};
+
+export default function FeedbackPanel({ feedback, studentText, english = false }: Props) {
   const sentences = studentText.split("\n");
+  const L = english ? UI.en : UI.ko;
+  const scoreLabels = english ? SCORE_LABEL_EN : SCORE_LABEL;
 
   return (
     <div className="flex flex-col gap-5">
@@ -30,7 +54,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
         />
         <span className="text-3xl">{feedback.pass ? "🎉" : "💪"}</span>
         <div>
-          <p className="text-xs font-medium text-zinc-400">글쌤의 피드백</p>
+          <p className="text-xs font-medium text-zinc-400">{L.coach}</p>
           <p
             className={`text-lg font-bold ${
               feedback.pass ? "text-emerald-700" : "text-red-700"
@@ -40,7 +64,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
           </p>
           {feedback.teacher_handoff_needed && (
             <p className="mt-0.5 text-xs text-orange-600">
-              선생님 확인이 필요합니다: {feedback.teacher_handoff_reason}
+              {L.handoff} {feedback.teacher_handoff_reason}
             </p>
           )}
         </div>
@@ -49,7 +73,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
       {/* 루브릭 점수 (차시12) */}
       {feedback.score && (
         <div className="rounded-xl border border-zinc-200 bg-white p-5">
-          <p className="mb-3 text-sm font-semibold text-zinc-600">총점</p>
+          <p className="mb-3 text-sm font-semibold text-zinc-600">{L.total}</p>
           <p className="text-4xl font-bold text-zinc-800">
             {feedback.score.total}
             <span className="ml-1 text-lg font-normal text-zinc-400">/ 20</span>
@@ -64,7 +88,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
                   />
                 </div>
                 <span className="text-xs text-zinc-400">
-                  {SCORE_LABEL[key] ?? key}
+                  {scoreLabels[key] ?? key}
                 </span>
                 <span className="text-sm font-semibold text-zinc-700">{val}</span>
               </div>
@@ -76,7 +100,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
       {/* 칭찬 */}
       {feedback.strengths.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500">잘한 점</h2>
+          <h2 className="mb-2 text-sm font-semibold text-zinc-500">{L.strengths}</h2>
           <div className="flex flex-col gap-2">
             {feedback.strengths.map((s, i) => (
               <div
@@ -84,7 +108,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
                 className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3"
               >
                 <p className="text-xs text-zinc-400">
-                  {s.sentence_index}번 문장
+                  {L.sentence(s.sentence_index)}
                 </p>
                 <p className="mt-0.5 text-sm font-medium text-zinc-700">
                   &ldquo;{sentences[s.sentence_index - 1] ?? s.text}&rdquo;
@@ -99,7 +123,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
       {/* 개선 사항 */}
       {feedback.improvements.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500">고쳐볼 점</h2>
+          <h2 className="mb-2 text-sm font-semibold text-zinc-500">{L.improvements}</h2>
           <div className="flex flex-col gap-3">
             {feedback.improvements.map((imp, i) => (
               <div
@@ -107,7 +131,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
                 className="rounded-xl border border-zinc-200 bg-white p-4"
               >
                 <span className="inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
-                  {imp.criterion_id} · {imp.sentence_index}번 문장
+                  {imp.criterion_id} · {L.sentence(imp.sentence_index)}
                 </span>
                 <p className="mt-2 text-sm text-zinc-500 line-through">
                   {imp.original}
@@ -125,7 +149,7 @@ export default function FeedbackPanel({ feedback, studentText }: Props) {
       {/* 한 가지 팁 */}
       {feedback.one_tip && (
         <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-          <p className="text-xs font-semibold text-amber-700">오늘의 팁</p>
+          <p className="text-xs font-semibold text-amber-700">{L.tip}</p>
           <p className="mt-1 text-sm text-zinc-700">{feedback.one_tip}</p>
         </div>
       )}
@@ -144,4 +168,17 @@ const SCORE_LABEL: Record<string, string> = {
   closing: "마무리",
   coherence: "연결성",
   connectives: "접속어",
+};
+
+const SCORE_LABEL_EN: Record<string, string> = {
+  fluency: "Fluency",
+  structure: "Structure",
+  content: "Content",
+  expression: "Vocabulary",
+  conventions: "Spelling",
+  topic_sentence: "Topic",
+  supporting: "Support",
+  closing: "Closing",
+  coherence: "Coherence",
+  connectives: "Linkers",
 };

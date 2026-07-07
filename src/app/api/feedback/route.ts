@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { SYSTEM_PROMPT } from "@/lib/claude/system-prompt";
+import { SYSTEM_PROMPT, SYSTEM_PROMPT_L2 } from "@/lib/claude/system-prompt";
 import { stripJson } from "@/lib/claude/strip-json";
 import { buildUserPrompt } from "@/lib/claude/build-user-prompt";
 import { getLessonConfig } from "@/prompts";
@@ -51,6 +51,8 @@ export async function POST(req: NextRequest) {
     }
 
     const userPrompt = buildUserPrompt(lesson, student_text);
+    // L2(영어권 초급) 차시는 영어 피드백 시스템 프롬프트 사용
+    const systemPrompt = lesson.track === "l2" ? SYSTEM_PROMPT_L2 : SYSTEM_PROMPT;
 
     const response = await client.messages.create({
       model: lesson.model,
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
       system: [
         {
           type: "text",
-          text: SYSTEM_PROMPT,
+          text: systemPrompt,
           cache_control: { type: "ephemeral" },
         },
       ],

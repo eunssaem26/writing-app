@@ -121,7 +121,11 @@ export default function WritePage({
       {/* 피드백 패널 */}
       {feedback && (
         <div className="flex flex-col gap-6">
-          <FeedbackPanel feedback={feedback} studentText={text} />
+          <FeedbackPanel
+            feedback={feedback}
+            studentText={text}
+            english={lesson.track === "l2"}
+          />
 
           <div className="flex gap-3">
             {feedback.pass ? (

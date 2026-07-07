@@ -1,4 +1,5 @@
 import type { LessonConfig } from "@/prompts/types";
+import { stageLabel } from "@/prompts";
 
 export function buildUserPrompt(lesson: LessonConfig, studentText: string): string {
   const sentences = studentText
@@ -7,9 +8,18 @@ export function buildUserPrompt(lesson: LessonConfig, studentText: string): stri
     .join("\n");
 
   const criteriaType = lesson.is_rubric ? "루브릭 항목" : "평가 기준";
+  const isL2 = lesson.track === "l2";
+
+  // L2는 영어 피드백 + 영어 result_label, heritage는 기존 한국어 그대로.
+  const resultLabelSchema = isL2
+    ? `"Great job! 🎉" | "Almost there — let's fix a few things"`
+    : `"합격" | "아직 조금 더 다듬어봐요"`;
+  const languageNote = isL2
+    ? `\n[Feedback language]\nWrite all explanatory text (result_label, reason, problem, one_tip) in ENGLISH. Keep "suggestion" as a corrected KOREAN sentence.\n`
+    : "";
 
   return `[차시 정보]
-차시: ${lesson.stage}단계 ${lesson.lesson_num}차시 — ${lesson.lesson_title}
+차시: ${stageLabel(lesson.stage)} ${lesson.lesson_num}차시 — ${lesson.lesson_title}
 학습 내용: ${lesson.lesson_summary}
 과제: ${lesson.assignment}
 
@@ -21,7 +31,7 @@ ${lesson.pass_rule}
 
 [이번 차시에서 평가하지 않는 항목]
 ${lesson.not_evaluated}
-
+${languageNote}
 [학생 글 — 줄번호 포함]
 ${sentences}
 
@@ -31,7 +41,7 @@ ${sentences}
 {
   "lesson_id": "${lesson.lesson_id}",
   "pass": true | false,
-  "result_label": "합격" | "아직 조금 더 다듬어봐요",
+  "result_label": ${resultLabelSchema},
   "score": null${lesson.is_rubric ? ` | {
     "total": <number>,
     "breakdown": {
